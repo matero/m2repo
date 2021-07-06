@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Script to automate local deployment and then hosting on github; based on https://gist.github.com/cleberjamaral/6c9b0a615e51e26c94ffe407a641f531 and
+# https://stackoverflow.com/questions/9386589/how-to-add-a-jar-source-and-javadoc-to-the-local-maven-repository
+
+helpFunction()
+{
+   echo ""
+   echo "Usage: $0 -group Group -artifact Artifact -version Version"
+   echo -e "\t-g group of the artifact to deploy"
+   echo -e "\t-g name of the artifact to deploy"
+   echo -e "\t-v version of the artifact to deploy"
+   exit 1 # Exit script after printing help
+}
+
+while getopts "v:g:a:" opt
+do
+   case "$opt" in
+      v ) Version="$OPTARG" ;;
+      g ) Group="$OPTARG" ;;
+      a ) Artifact="$OPTARG" ;;
+      ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Print helpFunction in case parameters are empty
+if [ -z "$Version" ] || [ -z "$Group" ] || [ -z "$Artifact" ]
+then
+   echo "Some or all of the parameters are empty";
+   helpFunction
+fi
+
+# Begin script in case all parameters are correct
+echo "coordinates to deploy => $Group:$Artifact:$Version"
+
+currentDir="$PWD"
+
+cd "$HOME/Codigo/$Artifact"
+./mvnw clean install
+
+cd "$HOME/Codigo/m2repo"
+
+mvn install:install-file                                        \
+ -Dfile="$HOME/Codigo/$Artifact/target/$Artifact-$Version.jar"  \
+ -DgroupId=$Group                                               \
+ -DartifactId=$Artifact                                         \
+ -Dversion=$Version                                             \
+ -Dpackaging=jar                                                \
+ -DlocalRepositoryPath=.                                        \
+ -DcreateChecksum=true                                          \
+ -DgeneratePom=true
+
+mvn install:install-file                                        \
+ -Dfile="$HOME/Codigo/$Artifact/target/$Artifact-$Version-javadoc.jar"  \
+ -DgroupId=$Group                                               \
+ -DartifactId=$Artifact                                         \
+ -Dversion=$Version                                             \
+ -Dpackaging=jar                                                \
+ -DlocalRepositoryPath=.                                        \
+ -DcreateChecksum=true
+
+mvn install:install-file                                        \
+ -Dfile="$HOME/Codigo/$Artifact/target/$Artifact-$Version-sources.jar"  \
+ -DgroupId=$Group                                               \
+ -DartifactId=$Artifact                                         \
+ -Dversion=$Version                                             \
+ -Dpackaging=jar                                                \
+ -DlocalRepositoryPath=.                                        \
+ -DcreateChecksum=true
+
+git add $Artifact
+git commit -m "Released bundle '$Group:$Artifact:$Version'"
+git push
+cd $currentDir
+
+
